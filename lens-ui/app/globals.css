@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 10 10 15;
+  --surface: 18 18 26;
+  --border: 30 30 46;
+}
+
+body {
+  color: #E2E8F0;
+  background-color: #0A0A0F;
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+}
+
+/* Pulse animation for Critical Deepfake risk categories */
+@keyframes forensic-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+}
+
+.pulse-red-glow {
+  animation: forensic-pulse 2s infinite;
+}

@@ -1,0 +1,25 @@
+# helm/calico/values.yaml
+# Tigera Operator / Calico CNI base values
+
+installation:
+  enabled: true
+  cni:
+    type: Calico
+  calicoNetwork:
+    bgp: Disabled
+    ipPools:
+      - blockSize: 26
+        cidr: 192.168.0.0/16
+        encapsulation: VXLAN
+        natOutgoing: Enabled
+        nodeSelector: all()
+  nodeMetricsPort: 9091
+  typhaMetricsPort: 9093
+
+tigeraOperator:
+  image: quay.io/tigera/operator
+  registry: quay.io
+
+monitoring:
+  prometheus:
+    enabled: true

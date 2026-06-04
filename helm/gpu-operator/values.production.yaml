@@ -1,0 +1,11 @@
+# helm/gpu-operator/values.production.yaml
+driver:
+  enabled: true
+mig:
+  strategy: mixed   # enables MIG partitioning on A100/H100 nodes
+
+dcgmExporter:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 15s

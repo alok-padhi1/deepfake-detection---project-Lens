@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-forensics-service
+  namespace: lens
+  labels:
+    app: image-forensics-service
+    component: forensics-engine
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: image-forensics-service
+  template:
+    metadata:
+      labels:
+        app: image-forensics-service
+        component: forensics-engine
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - image-forensics-service
+                topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 8888
+        fsGroup: 8888
+      containers:
+        - name: forensics-worker
+          image: lens-registry.local/lens/image-forensics-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http-metrics
+          env:
+            - name: LOG_LEVEL
+              value: "INFO"
+            # Kafka Settings
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: lens-global-config
+                  key: kafka-bootstrap-servers
+            - name: KAFKA_SASL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: lens-kafka-secrets
+                  key: sasl-username
+            - name: KAFKA_SASL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lens-kafka-secrets
+                  key: sasl-password
+            - name: KAFKA_SECURITY_PROTOCOL
+              value: "SASL_SSL"
+            - name: KAFKA_SASL_MECHANISM
+              value: "PLAIN"
+            # MinIO S3 Settings
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: lens-global-config
+                  key: minio-endpoint
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lens-minio-secrets
+                  key: access-key
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lens-minio-secrets
+                  key: secret-key
+            - name: MINIO_BUCKET_NAME
+              value: "lens-media"
+            # Redis Settings
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: lens-global-config
+                  key: redis-host
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lens-redis-secrets
+                  key: password
+            # Qdrant Vector Store
+            - name: QDRANT_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: lens-global-config
+                  key: qdrant-host
+            # TorchServe Prediction Service
+            - name: TORCHSERVE_URL
+              value: "http://torchserve-service.lens.svc.cluster.local:8080/predictions/efficientnet-b7-forensic"
+          resources:
+            requests:
+              memory: "8Gi"
+              cpu: "4"
+              nvidia.com/gpu: "1"
+            limits:
+              memory: "16Gi"
+              cpu: "8"
+              nvidia.com/gpu: "1"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3

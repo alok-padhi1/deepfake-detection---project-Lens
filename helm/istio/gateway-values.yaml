@@ -1,0 +1,31 @@
+# helm/istio/gateway-values.yaml
+# Istio IngressGateway base values
+
+service:
+  type: LoadBalancer
+  ports:
+    - name: http2
+      port: 80
+      protocol: TCP
+      targetPort: 8080
+    - name: https
+      port: 443
+      protocol: TCP
+      targetPort: 8443
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "2"
+    memory: 1Gi
+
+podDisruptionBudget:
+  minAvailable: 1

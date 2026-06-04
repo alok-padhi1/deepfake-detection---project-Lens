@@ -1,0 +1,255 @@
+services:
+  # --- INFRASTRUCTURE ---
+  kafka:
+    image: apache/kafka:latest
+    container_name: lens-kafka
+    environment:
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+    ports:
+      - "9092:9092"
+    networks:
+      - lens_net
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: lens-postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - lens_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:RELEASE.2023-08-09T23-30-22Z
+    container_name: lens-minio
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - lens_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: lens-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - lens_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0.1
+    container_name: lens-keycloak
+    environment:
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+    command: start-dev --import-realm
+    ports:
+      - "8080:8080"
+    networks:
+      - lens_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  torchserve:
+    image: pytorch/torchserve:latest-cpu
+    container_name: lens-torchserve
+    volumes:
+      - ./torchserve/config.properties:/home/model-server/config.properties
+      - ./ml/models:/home/model-server/model-store
+    ports:
+      - "8081:8080" # Management on 8081 locally
+      - "8082:8081"
+      - "8083:8082"
+    networks:
+      - lens_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # --- INIT SCRIPTS ---
+  init-scripts:
+    image: alpine:latest
+    container_name: lens-init-scripts
+    depends_on:
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    volumes:
+      - ./scripts:/scripts
+    networks:
+      - lens_net
+    command: >
+      sh -c "apk add --no-cache curl bash && bash /scripts/init-kafka.sh && bash /scripts/init-minio.sh && bash /scripts/init-keycloak.sh"
+
+  # --- LENS MICROSERVICES ---
+  api_service:
+    build:
+      context: ./api_service
+    container_name: lens-api-service
+    ports:
+      - "8000:8000"
+      - "50051:50051"
+    env_file: .env.local
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - lens_net
+
+  image_forensics_service:
+    build:
+      context: ./image_forensics_service
+    container_name: lens-image-worker
+    env_file: .env.local
+    environment:
+      - TORCHSERVE_URL=http://torchserve:8080/predictions/efficientnet-b7-forensic
+    depends_on:
+      kafka:
+        condition: service_healthy
+      torchserve:
+        condition: service_healthy
+    networks:
+      - lens_net
+
+  video_forensics_service:
+    build:
+      context: ./video_forensics_service
+    container_name: lens-video-worker
+    env_file: .env.local
+    environment:
+      - TORCHSERVE_URL=http://torchserve:8080/predictions/timesformer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      torchserve:
+        condition: service_healthy
+    networks:
+      - lens_net
+
+  audio_forensics_service:
+    build:
+      context: ./audio_forensics_service
+    container_name: lens-audio-worker
+    env_file: .env.local
+    environment:
+      - TORCHSERVE_RESNET_URL=http://torchserve:8080/predictions/resnet34_audio
+      - TORCHSERVE_RAWNET_URL=http://torchserve:8080/predictions/rawnet3
+    depends_on:
+      kafka:
+        condition: service_healthy
+      torchserve:
+        condition: service_healthy
+    networks:
+      - lens_net
+
+  av_sync_service:
+    build:
+      context: ./av_sync_service
+    container_name: lens-av-sync-worker
+    env_file: .env.local
+    environment:
+      - TORCHSERVE_URL=http://torchserve:8080/predictions/syncnet
+    depends_on:
+      kafka:
+        condition: service_healthy
+      torchserve:
+        condition: service_healthy
+    networks:
+      - lens_net
+
+  fusion_service:
+    build:
+      context: ./fusion_service
+    container_name: lens-fusion-worker
+    env_file: .env.local
+    environment:
+      - TORCHSERVE_URL=http://torchserve:8080/predictions/bayesian-fusion-mlp
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      torchserve:
+        condition: service_healthy
+    networks:
+      - lens_net
+
+  # --- FRONTEND ---
+  lens-ui:
+    build:
+      context: ./lens-ui
+      target: runner
+    container_name: lens-ui
+    ports:
+      - "3000:3000"
+    env_file: .env.local
+    depends_on:
+      api_service:
+        condition: service_started
+      keycloak:
+        condition: service_healthy
+    networks:
+      - lens_net
+
+networks:
+  lens_net:
+    driver: bridge
+
+volumes:
+  pg_data:
+  minio_data:

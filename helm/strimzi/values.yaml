@@ -1,0 +1,32 @@
+# helm/strimzi/values.yaml
+# Strimzi Kafka Operator base values
+
+replicas: 1
+
+watchNamespaces:
+  - lens-kafka
+
+featureGates: "+KafkaNodePools,+UnidirectionalTopicOperatorReconciliation"
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 384Mi
+  limits:
+    cpu: "1"
+    memory: 768Mi
+
+logLevel: INFO
+fullReconciliationIntervalMs: 120000
+
+operatorNamespaceLabels:
+  istio-injection: disabled   # operator itself excluded from mesh
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+dashboards:
+  enabled: true
+  namespace: monitoring
+  label: grafana_dashboard

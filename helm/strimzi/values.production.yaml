@@ -1,0 +1,12 @@
+# helm/strimzi/values.production.yaml
+replicas: 1     # operator is single-instance; Kafka cluster HA is in the Kafka CR
+logLevel: INFO
+fullReconciliationIntervalMs: 120000
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 1Gi

@@ -1,0 +1,18 @@
+# helm/kube-prometheus-stack/values.staging.yaml
+prometheus:
+  prometheusSpec:
+    replicas: 1
+    retention: 7d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          resources:
+            requests:
+              storage: 50Gi
+
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1
+
+grafana:
+  replicas: 1

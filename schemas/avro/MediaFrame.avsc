@@ -1,0 +1,15 @@
+{
+  "namespace": "io.lens.kafka",
+  "type": "record",
+  "name": "MediaFrame",
+  "doc": "Published to media.frames by the GPU worker for each extracted frame.",
+  "fields": [
+    {"name": "jobId",       "type": "string",  "doc": "Parent job UUID"},
+    {"name": "frameIndex",  "type": "int",     "doc": "Zero-based frame sequence number"},
+    {"name": "frameUri",    "type": "string",  "doc": "s3:// URI of the extracted frame PNG"},
+    {"name": "timestampMs", "type": "long",    "doc": "Frame timestamp within media (ms)"},
+    {"name": "width",       "type": "int"},
+    {"name": "height",      "type": "int"},
+    {"name": "extractedAt", "type": {"type": "long", "logicalType": "timestamp-millis"}}
+  ]
+}

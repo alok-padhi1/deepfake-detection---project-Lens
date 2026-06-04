@@ -1,0 +1,5 @@
+# helm/keda/values.staging.yaml
+metricsServer:
+  replicaCount: 1
+operator:
+  replicaCount: 1

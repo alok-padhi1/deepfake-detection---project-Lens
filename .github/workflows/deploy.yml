@@ -1,0 +1,375 @@
+# .github/workflows/deploy.yml
+# LENS AI Forensic Detection Platform — CI/CD Pipeline
+# Triggers: push to main, pull requests targeting main
+# Jobs: lint → validate → diff → deploy-staging → deploy-production (manual gate)
+
+name: LENS Deploy Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - ".gitignore"
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write   # For OIDC-based cloud provider auth
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  HELMFILE_VERSION: "0.162.0"
+  HELM_VERSION: "3.14.4"
+  KUBEVAL_VERSION: "0.16.1"
+  KUSTOMIZE_VERSION: "5.3.0"
+  KUBECTL_VERSION: "1.28.9"
+  HELM_CACHE_HOME: /home/runner/.cache/helm
+  HELMFILE_CACHE_HOME: /home/runner/.cache/helmfile
+
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+
+  # ── 1. Lint ─────────────────────────────────────────────────────────────────
+  lint:
+    name: Helm Lint All Charts
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cache Helm plugins and repos
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.HELM_CACHE_HOME }}
+            ${{ env.HELMFILE_CACHE_HOME }}
+          key: helm-${{ runner.os }}-${{ hashFiles('helmfile.yaml') }}
+          restore-keys: |
+            helm-${{ runner.os }}-
+
+      - name: Install Helm ${{ env.HELM_VERSION }}
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Add Helm repositories
+        run: |
+          helm repo add jetstack         https://charts.jetstack.io
+          helm repo add projectcalico    https://docs.tigera.io/calico/charts
+          helm repo add nvidia           https://helm.ngc.nvidia.com/nvidia
+          helm repo add kedacore         https://kedacore.github.io/charts
+          helm repo add istio            https://istio-release.storage.googleapis.com/charts
+          helm repo add strimzi          https://strimzi.io/charts/
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add grafana          https://grafana.github.io/helm-charts
+          helm repo add falcosecurity    https://falcosecurity.github.io/charts
+          helm repo update
+
+      - name: Lint all local Helm charts
+        run: |
+          EXIT=0
+          for chart_dir in helm/*/; do
+            chart=$(basename "$chart_dir")
+            echo "::group::Linting $chart"
+            helm lint "$chart_dir" --strict || EXIT=1
+            echo "::endgroup::"
+          done
+          exit $EXIT
+
+      - name: Lint helmfile.yaml syntax
+        run: |
+          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/v${{ env.HELMFILE_VERSION }}/helmfile_linux_amd64.tar.gz" \
+            | tar -xzf - helmfile
+          chmod +x helmfile && sudo mv helmfile /usr/local/bin/
+          helmfile lint --environment staging 2>&1 || true
+
+  # ── 2. Validate ─────────────────────────────────────────────────────────────
+  validate:
+    name: Kubeval Manifest Validation
+    runs-on: ubuntu-22.04
+    needs: lint
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install kubectl ${{ env.KUBECTL_VERSION }}
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v${{ env.KUBECTL_VERSION }}
+
+      - name: Install kubeval ${{ env.KUBEVAL_VERSION }}
+        run: |
+          curl -fsSL "https://github.com/instrumenta/kubeval/releases/download/v${{ env.KUBEVAL_VERSION }}/kubeval-linux-amd64.tar.gz" \
+            | tar -xzf - kubeval
+          chmod +x kubeval && sudo mv kubeval /usr/local/bin/
+
+      - name: Install kustomize ${{ env.KUSTOMIZE_VERSION }}
+        run: |
+          curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${{ env.KUSTOMIZE_VERSION }}/kustomize_v${{ env.KUSTOMIZE_VERSION }}_linux_amd64.tar.gz" \
+            | tar -xzf - kustomize
+          chmod +x kustomize && sudo mv kustomize /usr/local/bin/
+
+      - name: Validate manifests with kubeval
+        run: |
+          find manifests/ -name "*.yaml" \
+            ! -name "*secret*" \
+            ! -name "*Secret*" \
+          | xargs kubeval \
+            --kubernetes-version 1.28.0 \
+            --strict \
+            --ignore-missing-schemas \
+            --schema-location https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/
+
+      - name: Validate Avro schemas are valid JSON
+        run: |
+          EXIT=0
+          for schema in schemas/avro/*.avsc; do
+            echo "Validating: $schema"
+            jq empty "$schema" 2>&1 || { echo "Invalid JSON: $schema"; EXIT=1; }
+          done
+          exit $EXIT
+
+  # ── 3. Diff (PR only) ────────────────────────────────────────────────────────
+  diff:
+    name: Helmfile Diff vs Staging
+    runs-on: ubuntu-22.04
+    needs: [lint, validate]
+    if: github.event_name == 'pull_request'
+    environment: staging-readonly
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup kubeconfig
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "$KUBECONFIG_DATA" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Install tools
+        run: |
+          # Helm
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | \
+            DESIRED_VERSION="v${{ env.HELM_VERSION }}" bash
+          # Helmfile
+          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/v${{ env.HELMFILE_VERSION }}/helmfile_linux_amd64.tar.gz" \
+            | tar -xzf - helmfile
+          chmod +x helmfile && sudo mv helmfile /usr/local/bin/
+          # helm-diff plugin
+          helm plugin install https://github.com/databus23/helm-diff || true
+          # helm-secrets plugin
+          helm plugin install https://github.com/jkroepke/helm-secrets || true
+
+      - name: Helmfile diff vs staging
+        id: diff
+        env:
+          GRAFANA_ADMIN_PASSWORD: placeholder-for-diff
+        run: |
+          DIFF_OUTPUT=$(helmfile -e staging diff --suppress-secrets --context 3 2>&1 || true)
+          echo "diff_output<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$DIFF_OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Post diff as PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const diff = `${{ steps.diff.outputs.diff_output }}`;
+            const truncated = diff.length > 60000
+              ? diff.substring(0, 60000) + "\n\n...(truncated)"
+              : diff;
+            const body = `## 🔍 Helmfile Diff — Staging\n\n\`\`\`diff\n${truncated}\n\`\`\``;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
+
+  # ── 4. Deploy Staging (auto on merge to main) ─────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-22.04
+    needs: [lint, validate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: staging
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup kubeconfig
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "$KUBECONFIG_DATA" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Login to container registry
+        run: |
+          echo "${{ secrets.REGISTRY_TOKEN }}" | \
+            docker login "${{ vars.REGISTRY_URL }}" \
+              --username "${{ vars.REGISTRY_USERNAME }}" \
+              --password-stdin
+
+      - name: Install Helm + Helmfile + plugins
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | \
+            DESIRED_VERSION="v${{ env.HELM_VERSION }}" bash
+          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/v${{ env.HELMFILE_VERSION }}/helmfile_linux_amd64.tar.gz" \
+            | tar -xzf - helmfile
+          chmod +x helmfile && sudo mv helmfile /usr/local/bin/
+          helm plugin install https://github.com/databus23/helm-diff || true
+          helm plugin install https://github.com/jkroepke/helm-secrets || true
+          helm repo update
+
+      - name: Decrypt secrets (SOPS/AGE)
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          curl -fsSL "https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64" \
+            -o sops && chmod +x sops && sudo mv sops /usr/local/bin/
+          echo "$SOPS_AGE_KEY" > /tmp/age-key.txt
+          export SOPS_AGE_KEY_FILE=/tmp/age-key.txt
+
+      - name: Helmfile apply — staging
+        env:
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+        run: |
+          helmfile -e staging apply --suppress-secrets
+
+      - name: Post-deploy smoke tests
+        run: |
+          kubectl wait --for=condition=Ready pods \
+            -n cert-manager -l app.kubernetes.io/instance=cert-manager \
+            --timeout=180s
+          kubectl wait --for=condition=Ready pods \
+            -n istio-system -l app=istiod \
+            --timeout=180s
+          kubectl wait --for=condition=Ready pods \
+            -n strimzi-system -l name=strimzi-cluster-operator \
+            --timeout=180s
+          echo "✅ Staging deploy smoke tests passed."
+
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue?.number ?? 0,
+              body: "❌ **Staging deploy failed** for commit `${{ github.sha }}`. Check [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})."
+            });
+
+  # ── 5. Deploy Production (manual approval gate) ────────────────────────────
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-22.04
+    needs: deploy-staging
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production            # ← GitHub Environment with required reviewers
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup kubeconfig
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "$KUBECONFIG_DATA" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Login to container registry
+        run: |
+          echo "${{ secrets.REGISTRY_TOKEN }}" | \
+            docker login "${{ vars.REGISTRY_URL }}" \
+              --username "${{ vars.REGISTRY_USERNAME }}" \
+              --password-stdin
+
+      - name: Install Helm + Helmfile + plugins
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | \
+            DESIRED_VERSION="v${{ env.HELM_VERSION }}" bash
+          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/v${{ env.HELMFILE_VERSION }}/helmfile_linux_amd64.tar.gz" \
+            | tar -xzf - helmfile
+          chmod +x helmfile && sudo mv helmfile /usr/local/bin/
+          helm plugin install https://github.com/databus23/helm-diff || true
+          helm plugin install https://github.com/jkroepke/helm-secrets || true
+          helm repo update
+
+      - name: Decrypt secrets (SOPS/AGE)
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY_PROD }}
+        run: |
+          curl -fsSL "https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64" \
+            -o sops && chmod +x sops && sudo mv sops /usr/local/bin/
+          echo "$SOPS_AGE_KEY" > /tmp/age-key.txt
+          export SOPS_AGE_KEY_FILE=/tmp/age-key.txt
+
+      - name: Helmfile diff before apply (production)
+        env:
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD_PROD }}
+        run: |
+          helmfile -e production diff --suppress-secrets --context 3
+
+      - name: Helmfile apply — production
+        env:
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD_PROD }}
+        run: |
+          helmfile -e production apply --suppress-secrets
+
+      - name: Post-deploy smoke tests (production)
+        run: |
+          kubectl wait --for=condition=Ready pods \
+            -n cert-manager -l app.kubernetes.io/instance=cert-manager \
+            --timeout=300s
+          kubectl wait --for=condition=Ready pods \
+            -n istio-system -l app=istiod \
+            --timeout=300s
+          kubectl wait --for=condition=Ready pods \
+            -n strimzi-system -l name=strimzi-cluster-operator \
+            --timeout=300s
+          kubectl wait --for=condition=Ready pods \
+            -n lens-kafka -l strimzi.io/cluster=lens-kafka \
+            --timeout=300s
+          echo "✅ Production deploy smoke tests passed."
+
+      - name: Tag successful production release
+        if: success()
+        run: |
+          git config user.email "ci@lens.internal"
+          git config user.name  "LENS CI"
+          git tag -a "prod-$(date +%Y%m%d-%H%M%S)" \
+            -m "Production deploy: ${{ github.sha }}"
+          git push origin --tags
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Production deploy FAILED for ${{ github.sha }}" >&2
+          exit 1

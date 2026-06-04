@@ -1,0 +1,13 @@
+# helm/falco/values.production.yaml
+falcosidekick:
+  replicaCount: 2
+  config:
+    debug: false
+    alertmanager:
+      minimumpriority: warning
+    slack:
+      minimumpriority: critical
+
+metrics:
+  interval: 15m
+  outputRuleCountersEnabled: true

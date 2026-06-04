@@ -1,0 +1,86 @@
+{
+  "uid": "lens-gpu-autoscale",
+  "title": "LENS — GPU Pool Utilization & Autoscaling",
+  "tags": ["lens", "gpu", "keda"],
+  "timezone": "browser",
+  "refresh": "15s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "GPU Utilization % per Node",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "DCGM_FI_DEV_GPU_UTIL{namespace='lens'}", "legendFormat": "{{instance}} / GPU{{gpu}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": { "steps": [
+            { "value": 0,  "color": "green" },
+            { "value": 70, "color": "yellow" },
+            { "value": 90, "color": "red" }
+          ]}
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "GPU Memory Used % per Device",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "DCGM_FI_DEV_MEM_COPY_UTIL{namespace='lens'}", "legendFormat": "{{instance}} / GPU{{gpu}} MEM" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": { "steps": [
+            { "value": 0,  "color": "green" },
+            { "value": 80, "color": "yellow" },
+            { "value": 95, "color": "red" }
+          ]}
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "KEDA Replica Count — Video Forensics Worker",
+      "description": "Observe autoscale events from 3→12 under load",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "kube_deployment_status_replicas_ready{namespace='lens', deployment='video-forensics-service'}", "legendFormat": "ready replicas" },
+        { "expr": "kube_deployment_spec_replicas{namespace='lens', deployment='video-forensics-service'}", "legendFormat": "desired replicas" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Kafka Lag → KEDA Scale Trigger Correlation",
+      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "sum(kafka_consumer_lag{namespace='lens', topic='analysis.video'})", "legendFormat": "analysis.video lag" },
+        { "expr": "kube_deployment_status_replicas_ready{namespace='lens', deployment='video-forensics-service'}", "legendFormat": "video worker replicas" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Total GPU Nodes in Pool",
+      "gridPos": { "x": 0, "y": 32, "w": 4, "h": 4 },
+      "targets": [
+        { "expr": "count(DCGM_FI_DEV_GPU_UTIL{namespace='lens'})", "legendFormat": "GPU nodes" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    }
+  ],
+  "schemaVersion": 38
+}

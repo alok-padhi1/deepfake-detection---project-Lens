@@ -1,0 +1,45 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: image-forensics-scaledobject
+  namespace: lens
+  labels:
+    app: image-forensics-service
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: image-forensics-service
+  minReplicaCount: 3
+  maxReplicaCount: 30
+  cooldownPeriod: 300
+  pollingInterval: 30
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 10
+              periodSeconds: 60
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServersFromEnv: KAFKA_BOOTSTRAP_SERVERS
+        consumerGroup: image-forensics-workers
+        topic: analysis.image
+        lagThreshold: "100"
+        activationLagThreshold: "10"
+        sasl: plaintext
+        # Using environment variables from deployment secrets to authenticate with Kafka SASL/SCRAM or PLAIN
+        usernameFromEnv: KAFKA_SASL_USERNAME
+        passwordFromEnv: KAFKA_SASL_PASSWORD
+        securityProtocol: SASL_SSL
+        saslMechanism: PLAIN

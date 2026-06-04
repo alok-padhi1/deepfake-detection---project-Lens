@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: av-sync-service
+  namespace: lens
+  labels:
+    app: av-sync-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: av-sync-service
+  template:
+    metadata:
+      labels:
+        app: av-sync-service
+    spec:
+      containers:
+      - name: av-sync-service
+        image: lens/av-sync-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8004
+        envFrom:
+        - configMapRef:
+            name: lens-config
+        - secretRef:
+            name: lens-secrets
+        resources:
+          requests:
+            cpu: "2"
+            memory: "4Gi"
+            nvidia.com/gpu: "1"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+            nvidia.com/gpu: "1"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8004
+          initialDelaySeconds: 30
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8004
+          initialDelaySeconds: 20
+          periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: av-sync-service
+  namespace: lens
+spec:
+  selector:
+    app: av-sync-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8004

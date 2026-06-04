@@ -1,0 +1,15 @@
+fastapi>=0.110.0
+uvicorn>=0.28.0
+confluent-kafka>=2.3.0
+redis>=5.0.3
+requests>=2.31.0
+pydantic-settings>=2.2.0
+prometheus-client>=0.20.0
+numpy>=1.24.0
+scipy>=1.11.0
+librosa>=0.10.1
+torch>=2.2.0
+torchaudio>=2.2.0
+praat-parselmouth>=0.4.3
+PyExifTool>=0.5.5
+boto3>=1.34.0

@@ -1,0 +1,51 @@
+# helm/loki-stack/values.yaml
+# Loki Stack base values
+
+loki:
+  enabled: true
+  persistence:
+    enabled: true
+    storageClassName: gp3
+    size: 20Gi
+  config:
+    schema_config:
+      configs:
+        - from: "2024-01-01"
+          store: boltdb-shipper
+          object_store: filesystem
+          schema: v12
+          index:
+            prefix: loki_index_
+            period: 24h
+    storage_config:
+      boltdb_shipper:
+        shared_store: filesystem
+        active_index_directory: /data/loki/boltdb-index
+        cache_location: /data/loki/boltdb-cache
+    limits_config:
+      enforce_metric_name: false
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+      ingestion_rate_mb: 16
+      ingestion_burst_size_mb: 32
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+
+promtail:
+  enabled: true
+  config:
+    logLevel: info
+    serverPort: 3101
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+
+grafana:
+  enabled: false   # grafana managed by kube-prometheus-stack

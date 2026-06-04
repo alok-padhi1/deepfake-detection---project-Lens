@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LENS SynthTrace — Forensic Analysis Console</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0f;--surface:#12121a;--surface2:#1a1a28;--surface3:#22223a;
+  --border:#2a2a4a;--text:#e8e8f0;--text2:#8888aa;--accent:#6c5ce7;
+  --accent2:#a29bfe;--green:#00cec9;--red:#ff6b6b;--orange:#fdcb6e;
+  --glass:rgba(255,255,255,0.03);--glow:0 0 40px rgba(108,92,231,0.15);
+}
+html{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+body{min-height:100vh;background:radial-gradient(ellipse at 20% 0%,rgba(108,92,231,0.08) 0%,transparent 50%),
+  radial-gradient(ellipse at 80% 100%,rgba(0,206,201,0.06) 0%,transparent 50%),var(--bg)}
+
+.container{max-width:1100px;margin:0 auto;padding:32px 20px}
+
+/* Header */
+.header{text-align:center;margin-bottom:40px}
+.header .logo{font-size:11px;letter-spacing:6px;text-transform:uppercase;color:var(--accent2);font-weight:600;margin-bottom:8px}
+.header h1{font-size:32px;font-weight:800;background:linear-gradient(135deg,#fff,var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+.header p{color:var(--text2);font-size:14px;font-weight:300}
+
+/* Upload Zone */
+.upload-zone{
+  border:2px dashed var(--border);border-radius:16px;padding:48px 32px;text-align:center;
+  background:var(--glass);cursor:pointer;transition:all 0.3s ease;position:relative;overflow:hidden
+}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:rgba(108,92,231,0.05);transform:translateY(-2px);box-shadow:var(--glow)}
+.upload-zone .icon{font-size:48px;margin-bottom:16px;opacity:0.6}
+.upload-zone h3{font-size:18px;font-weight:600;margin-bottom:8px}
+.upload-zone p{color:var(--text2);font-size:13px}
+.upload-zone input{display:none}
+.upload-zone .formats{margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.upload-zone .formats span{background:var(--surface2);padding:4px 10px;border-radius:6px;font-size:11px;color:var(--text2);font-weight:500}
+
+/* Processing State */
+.processing{display:none;text-align:center;padding:60px 20px}
+.processing.active{display:block}
+.spinner{width:48px;height:48px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.processing h3{font-size:18px;font-weight:600;margin-bottom:6px}
+.processing p{color:var(--text2);font-size:13px}
+
+/* Results */
+.results{display:none;margin-top:36px}
+.results.active{display:block}
+
+.result-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:16px}
+.result-header .file-info{font-size:13px;color:var(--text2)}
+.result-header .file-info strong{color:var(--text);font-weight:600}
+.result-header .latency{font-size:12px;color:var(--text2);background:var(--surface2);padding:4px 12px;border-radius:8px}
+
+/* Fusion Card */
+.fusion-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;
+  margin-bottom:28px;text-align:center;position:relative;overflow:hidden
+}
+.fusion-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:16px 16px 0 0}
+.fusion-card.authentic::before{background:linear-gradient(90deg,var(--green),#55efc4)}
+.fusion-card.suspicious::before{background:linear-gradient(90deg,var(--orange),#e17055)}
+.fusion-card.synthetic::before{background:linear-gradient(90deg,var(--red),#d63031)}
+
+.fusion-score{font-size:64px;font-weight:900;line-height:1;margin:8px 0}
+.fusion-card.authentic .fusion-score{background:linear-gradient(135deg,var(--green),#55efc4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.fusion-card.suspicious .fusion-score{background:linear-gradient(135deg,var(--orange),#e17055);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.fusion-card.synthetic .fusion-score{background:linear-gradient(135deg,var(--red),#d63031);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+.fusion-verdict{font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px}
+.fusion-sub{font-size:12px;color:var(--text2);margin-top:8px}
+.fusion-meta{display:flex;justify-content:center;gap:32px;margin-top:20px;flex-wrap:wrap}
+.fusion-meta .fm{text-align:center}
+.fusion-meta .fm .val{font-size:18px;font-weight:700}
+.fusion-meta .fm .lbl{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+
+/* Module Grid */
+.modules-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-bottom:32px}
+.module-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;
+  transition:all 0.2s ease
+}
+.module-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.module-card .mc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.module-card .mc-name{font-size:13px;font-weight:600}
+.module-card .mc-verdict{font-size:11px;font-weight:600;padding:3px 10px;border-radius:6px}
+.mc-verdict.authentic{background:rgba(0,206,201,0.15);color:var(--green)}
+.mc-verdict.suspicious{background:rgba(255,107,107,0.15);color:var(--red)}
+
+.score-bar-wrap{margin-bottom:14px}
+.score-bar-bg{height:8px;background:var(--surface3);border-radius:4px;overflow:hidden}
+.score-bar-fill{height:100%;border-radius:4px;transition:width 0.8s ease}
+.score-bar-fill.high{background:linear-gradient(90deg,var(--green),#55efc4)}
+.score-bar-fill.mid{background:linear-gradient(90deg,var(--orange),#fdcb6e)}
+.score-bar-fill.low{background:linear-gradient(90deg,var(--red),#e17055)}
+.score-val{font-size:20px;font-weight:800;margin-bottom:6px}
+
+.module-details{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.module-details .md-item{display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.03)}
+.md-item .md-key{color:var(--text2)}
+.md-item .md-val{font-weight:600;font-variant-numeric:tabular-nums}
+
+/* New Test Button */
+.btn-new{
+  display:inline-flex;align-items:center;gap:8px;padding:12px 28px;border:none;border-radius:10px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:14px;
+  font-weight:600;cursor:pointer;transition:all 0.2s ease;font-family:inherit
+}
+.btn-new:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(108,92,231,0.3)}
+
+/* Footer */
+.footer{text-align:center;padding:32px 0;color:var(--text2);font-size:11px;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="logo">LENS SynthTrace</div>
+    <h1>Forensic Analysis Console</h1>
+    <p>Multi-modal AI-driven synthetic media detection engine</p>
+  </div>
+
+  <div class="upload-zone" id="dropZone">
+    <div class="icon">🔬</div>
+    <h3>Drop media file here or click to browse</h3>
+    <p>Upload media to run full forensic pipeline analysis</p>
+    <div class="formats">
+      <span>JPG</span><span>PNG</span><span>WebP</span><span>MP4</span><span>WAV</span><span>MP3</span>
+    </div>
+    <input type="file" id="fileInput" accept="image/*,video/*,audio/*">
+  </div>
+
+  <div class="processing" id="processing">
+    <div class="spinner"></div>
+    <h3>Running Forensic Analysis Pipeline</h3>
+    <p>PRNU · ELA · FFT · DCT · Texture · Wavelet · Bayesian Fusion</p>
+  </div>
+
+  <div class="results" id="results"></div>
+</div>
+
+<div class="footer">LENS SynthTrace v1.0.0 — Multi-Modal Forensic Detection Engine</div>
+
+<script>
+const dropZone=document.getElementById('dropZone'),fileInput=document.getElementById('fileInput'),
+      processing=document.getElementById('processing'),resultsDiv=document.getElementById('results');
+
+dropZone.addEventListener('click',()=>fileInput.click());
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('dragover')});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('dragover');if(e.dataTransfer.files.length)uploadFile(e.dataTransfer.files[0])});
+fileInput.addEventListener('change',()=>{if(fileInput.files.length)uploadFile(fileInput.files[0])});
+
+async function uploadFile(file){
+  dropZone.style.display='none';processing.classList.add('active');resultsDiv.classList.remove('active');
+  const fd=new FormData();fd.append('file',file);
+  try{
+    const res=await fetch('/api/analyze',{method:'POST',body:fd});
+    const data=await res.json();
+    if(data.error){alert('Error: '+data.error);reset();return}
+    renderResults(data);
+  }catch(e){alert('Server error: '+e.message);reset()}
+}
+
+function reset(){
+  dropZone.style.display='';processing.classList.remove('active');
+  resultsDiv.classList.remove('active');fileInput.value='';
+}
+
+function renderResults(data){
+  processing.classList.remove('active');resultsDiv.classList.add('active');
+  const f=data.fusion;
+  const cls=f.verdict==='AUTHENTIC'?'authentic':f.verdict==='SUSPICIOUS'?'suspicious':'synthetic';
+  let html=`
+  <div class="result-header">
+    <div class="file-info"><strong>${data.filename}</strong> · ${data.dimensions} · Case #${data.case_id}</div>
+    <div class="latency">⚡ ${data.latency_ms}ms</div>
+  </div>
+  <div class="fusion-card ${cls}">
+    <div class="fusion-verdict">${f.verdict}</div>
+    <div class="fusion-score">${(f.authenticity_score*100).toFixed(1)}%</div>
+    <div class="fusion-sub">Bayesian Fusion Authenticity Score</div>
+    <div class="fusion-meta">
+      <div class="fm"><div class="val">${(f.confidence*100).toFixed(1)}%</div><div class="lbl">Confidence</div></div>
+      <div class="fm"><div class="val">${f.risk_level}</div><div class="lbl">Risk Level</div></div>
+      <div class="fm"><div class="val">${f.epistemic_uncertainty.toFixed(3)}</div><div class="lbl">Uncertainty</div></div>
+    </div>
+  </div>
+  <div class="modules-grid">`;
+  for(const m of data.modules){
+    const pct=(m.score*100).toFixed(1);
+    const barCls=m.score>0.6?'high':m.score>0.4?'mid':'low';
+    const vCls=m.verdict==='Authentic'?'authentic':'suspicious';
+    const details=Object.entries(m).filter(([k])=>!['name','score','verdict'].includes(k));
+    html+=`<div class="module-card">
+      <div class="mc-header"><span class="mc-name">${m.name}</span><span class="mc-verdict ${vCls}">${m.verdict}</span></div>
+      <div class="score-val">${pct}%</div>
+      <div class="score-bar-wrap"><div class="score-bar-bg"><div class="score-bar-fill ${barCls}" style="width:${pct}%"></div></div></div>
+      <div class="module-details">${details.map(([k,v])=>`<div class="md-item"><span class="md-key">${k.replace(/_/g,' ')}</span><span class="md-val">${typeof v==='number'?v.toFixed(4):v}</span></div>`).join('')}</div>
+    </div>`;
+  }
+  html+=`</div><div style="text-align:center"><button class="btn-new" onclick="reset()">🔬 Run Another Test</button></div>`;
+  resultsDiv.innerHTML=html;
+}
+</script>
+</body>
+</html>

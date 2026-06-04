@@ -1,0 +1,52 @@
+# helm/gpu-operator/values.yaml
+# NVIDIA GPU Operator base values
+
+operator:
+  defaultRuntime: containerd
+  runtimeClass: nvidia
+
+driver:
+  enabled: true
+  repository: nvcr.io/nvidia
+  image: driver
+  version: "550.54.15"
+  manager:
+    image:
+      repository: nvcr.io/nvidia/cloud-native/k8s-driver-manager
+      tag: v0.6.7
+
+toolkit:
+  enabled: true
+  repository: nvcr.io/nvidia
+  image: container-toolkit
+  version: v1.15.0
+
+devicePlugin:
+  enabled: true
+  repository: nvcr.io/nvidia
+  image: k8s-device-plugin
+  version: v0.14.5
+
+dcgm:
+  enabled: true
+
+dcgmExporter:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+
+gfd:
+  enabled: true
+
+mig:
+  strategy: none
+
+nodeStatusExporter:
+  enabled: true
+
+validator:
+  plugin:
+    env:
+      - name: WITH_WORKLOAD
+        value: "false"

@@ -1,0 +1,17 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: fusion-service-scaler
+  namespace: lens
+spec:
+  scaleTargetRef:
+    name: fusion-service
+  minReplicaCount: 2
+  maxReplicaCount: 15
+  triggers:
+  - type: kafka
+    metadata:
+      bootstrapServers: strimzi-kafka-bootstrap.lens.svc.cluster.local:9092
+      consumerGroup: fusion-workers
+      topic: analysis.fusion.trigger
+      lagThreshold: "50"

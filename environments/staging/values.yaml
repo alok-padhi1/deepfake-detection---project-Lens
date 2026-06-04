@@ -1,0 +1,77 @@
+# environments/staging/values.yaml
+# LENS Platform — Staging Environment Overrides
+
+# ── GPU ──────────────────────────────────────────────────────────────────────
+gpuDriverEnabled: "true"
+
+# ── KEDA ─────────────────────────────────────────────────────────────────────
+kedaMetricsReplicas: 1
+
+# ── Prometheus ───────────────────────────────────────────────────────────────
+prometheusRetention: 7d
+prometheusStorageSize: 50Gi
+
+# ── Loki ─────────────────────────────────────────────────────────────────────
+lokiStorageSize: 20Gi
+
+# ── Replica counts ───────────────────────────────────────────────────────────
+replicaCount:
+  api: 1
+  ingest: 1
+  worker: 1
+  alert: 1
+
+# ── Resource limits (relaxed for staging) ────────────────────────────────────
+resources:
+  api:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+  worker:
+    requests:
+      cpu: "1"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "16Gi"
+      nvidia.com/gpu: "1"
+
+# ── Domain ───────────────────────────────────────────────────────────────────
+domain: staging.lens.internal
+tlsIssuer: letsencrypt-staging
+
+# ── Storage ──────────────────────────────────────────────────────────────────
+minio:
+  storageSize: 100Gi
+  replicas: 1
+  mode: standalone
+
+postgres:
+  storageSize: 20Gi
+  replicas: 1
+  walArchiving: false
+
+redis:
+  storageSize: 5Gi
+  replicas: 1
+
+qdrant:
+  storageSize: 20Gi
+  replicas: 1
+
+# ── Kafka ─────────────────────────────────────────────────────────────────────
+kafka:
+  replicas: 3
+  storageSize: 50Gi
+  schemaRegistry:
+    replicas: 1
+
+# ── Feature flags ─────────────────────────────────────────────────────────────
+features:
+  opaGatekeeper: true
+  networkPolicies: true
+  podSecurityAdmission: warn
+  istioMtls: STRICT

@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: video-forensics-service
+  namespace: lens
+  labels:
+    app: video-forensics-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: video-forensics-service
+  template:
+    metadata:
+      labels:
+        app: video-forensics-service
+    spec:
+      containers:
+      - name: video-forensics-service
+        image: lens/video-forensics-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8002
+        envFrom:
+        - configMapRef:
+            name: lens-config
+        - secretRef:
+            name: lens-secrets
+        resources:
+          requests:
+            cpu: "2"
+            memory: "4Gi"
+            nvidia.com/gpu: "1"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+            nvidia.com/gpu: "1"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 30
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 20
+          periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: video-forensics-service
+  namespace: lens
+spec:
+  selector:
+    app: video-forensics-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8002

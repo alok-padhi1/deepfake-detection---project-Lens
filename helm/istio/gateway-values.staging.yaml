@@ -1,0 +1,4 @@
+# helm/istio/gateway-values.staging.yaml
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2

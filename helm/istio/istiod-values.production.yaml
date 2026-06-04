@@ -1,0 +1,8 @@
+# helm/istio/istiod-values.production.yaml
+pilot:
+  autoscaleMin: 2
+  autoscaleMax: 5
+  traceSampling: 1.0     # 1% sampling in production
+
+podDisruptionBudget:
+  minAvailable: 1

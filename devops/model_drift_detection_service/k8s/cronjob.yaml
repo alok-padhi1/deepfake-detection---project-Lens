@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: model-drift-detector
+  namespace: lens
+spec:
+  schedule: "0 2 * * *" # Daily at 02:00 UTC
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: drift-detector
+            image: lens/model-drift-detector:latest
+            imagePullPolicy: IfNotPresent
+            env:
+            - name: PROMETHEUS_URL
+              value: "http://lens-monitoring-prometheus.monitoring.svc.cluster.local:9090"
+            - name: KAFKA_BROKERS
+              value: "strimzi-kafka-bootstrap.lens.svc.cluster.local:9092"
+            - name: PG_HOST
+              value: "postgresql.lens.svc.cluster.local"
+            - name: PG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: lens-secrets
+                  key: POSTGRES_USER
+            - name: PG_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: lens-secrets
+                  key: POSTGRES_PASSWORD
+            - name: PG_DB
+              value: "lens_db"
+            - name: DRIFT_THRESHOLD
+              value: "0.08"
+          restartPolicy: OnFailure

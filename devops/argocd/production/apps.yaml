@@ -1,0 +1,160 @@
+# ArgoCD Application manifests for all 6 LENS services — PRODUCTION
+# automated sync is DISABLED — requires manual ArgoCD sync for production
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lens-image-prod
+  namespace: argocd
+spec:
+  project: lens-prod
+  source:
+    repoURL: https://github.com/YOUR_ORG/lens
+    targetRevision: HEAD
+    path: image_forensics_service/k8s
+    helm:
+      valueFiles:
+        - devops/argocd/production/image_forensics_service-values.yaml
+  destination:
+    server: https://PROD_K8S_API_SERVER
+    namespace: lens
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+    # NO automated block — prod requires explicit argocd app sync
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lens-video-prod
+  namespace: argocd
+spec:
+  project: lens-prod
+  source:
+    repoURL: https://github.com/YOUR_ORG/lens
+    targetRevision: HEAD
+    path: video_forensics_service/k8s
+    helm:
+      valueFiles:
+        - devops/argocd/production/video_forensics_service-values.yaml
+  destination:
+    server: https://PROD_K8S_API_SERVER
+    namespace: lens
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lens-audio-prod
+  namespace: argocd
+spec:
+  project: lens-prod
+  source:
+    repoURL: https://github.com/YOUR_ORG/lens
+    targetRevision: HEAD
+    path: audio_forensics_service/k8s
+    helm:
+      valueFiles:
+        - devops/argocd/production/audio_forensics_service-values.yaml
+  destination:
+    server: https://PROD_K8S_API_SERVER
+    namespace: lens
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lens-av-sync-prod
+  namespace: argocd
+spec:
+  project: lens-prod
+  source:
+    repoURL: https://github.com/YOUR_ORG/lens
+    targetRevision: HEAD
+    path: av_sync_service/k8s
+    helm:
+      valueFiles:
+        - devops/argocd/production/av_sync_service-values.yaml
+  destination:
+    server: https://PROD_K8S_API_SERVER
+    namespace: lens
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lens-fusion-prod
+  namespace: argocd
+spec:
+  project: lens-prod
+  source:
+    repoURL: https://github.com/YOUR_ORG/lens
+    targetRevision: HEAD
+    path: fusion_service/k8s
+    helm:
+      valueFiles:
+        - devops/argocd/production/fusion_service-values.yaml
+  destination:
+    server: https://PROD_K8S_API_SERVER
+    namespace: lens
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lens-api-prod
+  namespace: argocd
+spec:
+  project: lens-prod
+  source:
+    repoURL: https://github.com/YOUR_ORG/lens
+    targetRevision: HEAD
+    path: api_service/k8s
+    helm:
+      valueFiles:
+        - devops/argocd/production/api_service-values.yaml
+  destination:
+    server: https://PROD_K8S_API_SERVER
+    namespace: lens
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

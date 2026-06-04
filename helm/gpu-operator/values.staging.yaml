@@ -1,0 +1,5 @@
+# helm/gpu-operator/values.staging.yaml
+driver:
+  enabled: true
+mig:
+  strategy: none

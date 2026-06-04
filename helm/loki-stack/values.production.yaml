@@ -1,0 +1,9 @@
+# helm/loki-stack/values.production.yaml
+loki:
+  persistence:
+    size: 100Gi
+  config:
+    limits_config:
+      ingestion_rate_mb: 64
+      ingestion_burst_size_mb: 128
+      max_streams_per_user: 100000

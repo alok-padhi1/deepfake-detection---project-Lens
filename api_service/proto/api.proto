@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package lens;
+
+service AnalyzeMedia {
+  rpc StreamFrames (stream VideoFrame) returns (stream FrameScore);
+}
+
+message VideoFrame {
+  bytes frame_data = 1;
+  int32 frame_number = 2;
+  int64 pts_ms = 3;
+}
+
+message FrameScore {
+  int32 frame_number = 1;
+  float confidence = 2;
+  repeated string anomaly_flags = 3;
+}

@@ -1,0 +1,4 @@
+# helm/loki-stack/values.staging.yaml
+loki:
+  persistence:
+    size: 20Gi

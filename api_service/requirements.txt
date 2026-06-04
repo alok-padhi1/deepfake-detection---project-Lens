@@ -1,0 +1,16 @@
+fastapi>=0.110.0
+uvicorn>=0.28.0
+confluent-kafka>=2.3.0
+redis>=5.0.3
+requests>=2.31.0
+pydantic-settings>=2.2.0
+prometheus-client>=0.20.0
+numpy>=1.24.0
+psycopg2-binary>=2.9.9
+sqlalchemy>=2.0.28
+boto3>=1.34.0
+python-jose[cryptography]>=3.3.0
+python-multipart>=0.0.9
+zipstream-ng>=1.7.0
+grpcio>=1.62.0
+grpcio-tools>=1.62.0

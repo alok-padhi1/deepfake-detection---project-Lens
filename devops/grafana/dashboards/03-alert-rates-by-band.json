@@ -1,0 +1,64 @@
+{
+  "uid": "lens-alert-rates",
+  "title": "LENS — Alert Rates by Confidence Band",
+  "tags": ["lens", "alerts", "forensics"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Case Completions by Decision Band (stacked)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 10 },
+      "targets": [
+        { "expr": "sum by (decision_band) (increase(case_processing_duration_seconds_count{namespace='lens', decision_band='LOW'}[5m]))",      "legendFormat": "Authentic (0.00–0.20)" },
+        { "expr": "sum by (decision_band) (increase(case_processing_duration_seconds_count{namespace='lens', decision_band='LOW_SUSPICION'}[5m]))", "legendFormat": "Low Suspicion (0.21–0.45)" },
+        { "expr": "sum by (decision_band) (increase(case_processing_duration_seconds_count{namespace='lens', decision_band='MODERATE'}[5m]))", "legendFormat": "Moderate (0.46–0.70)" },
+        { "expr": "sum by (decision_band) (increase(case_processing_duration_seconds_count{namespace='lens', decision_band='HIGH'}[5m]))",    "legendFormat": "High Confidence Synthetic (0.71–0.89)" },
+        { "expr": "sum by (decision_band) (increase(case_processing_duration_seconds_count{namespace='lens', decision_band='CRITICAL'}[5m]))", "legendFormat": "Near-Certain Synthetic (0.90–1.00)" }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "stacking": { "mode": "normal" }, "fillOpacity": 70 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Authentic (0.00–0.20)" },           "properties": [{ "id": "color", "value": { "fixedColor": "#10B981", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Low Suspicion (0.21–0.45)" },        "properties": [{ "id": "color", "value": { "fixedColor": "#F59E0B", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Moderate (0.46–0.70)" },             "properties": [{ "id": "color", "value": { "fixedColor": "#F97316", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "High Confidence Synthetic (0.71–0.89)" }, "properties": [{ "id": "color", "value": { "fixedColor": "#EF4444", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Near-Certain Synthetic (0.90–1.00)" }, "properties": [{ "id": "color", "value": { "fixedColor": "#7F1D1D", "mode": "fixed" } }] }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "type": "piechart",
+      "title": "Decision Band Distribution (last 24h)",
+      "gridPos": { "x": 0, "y": 10, "w": 6, "h": 8 },
+      "targets": [
+        { "expr": "sum by (decision_band) (increase(case_processing_duration_seconds_count{namespace='lens'}[24h]))", "legendFormat": "{{decision_band}}" }
+      ],
+      "options": { "pieType": "donut", "legendDisplayMode": "table" }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Synthetic Alert Rate (CRITICAL + HIGH) — last 1h",
+      "gridPos": { "x": 6, "y": 10, "w": 6, "h": 8 },
+      "targets": [{
+        "expr": "sum(increase(case_processing_duration_seconds_count{namespace='lens', decision_band=~'HIGH|CRITICAL'}[1h])) / sum(increase(case_processing_duration_seconds_count{namespace='lens'}[1h]))",
+        "legendFormat": "synthetic alert rate"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "steps": [
+            { "value": 0,    "color": "green" },
+            { "value": 0.10, "color": "yellow" },
+            { "value": 0.25, "color": "red" }
+          ]}
+        }
+      }
+    }
+  ],
+  "schemaVersion": 38
+}

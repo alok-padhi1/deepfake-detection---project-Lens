@@ -1,0 +1,289 @@
+# helmfile.yaml
+# LENS AI Forensic Detection Platform — Helmfile
+# Manages all Helm releases in dependency-ordered deployment sequence.
+
+repositories:
+  - name: jetstack
+    url: https://charts.jetstack.io
+  - name: projectcalico
+    url: https://docs.tigera.io/calico/charts
+  - name: nvidia
+    url: https://helm.ngc.nvidia.com/nvidia
+  - name: kedacore
+    url: https://kedacore.github.io/charts
+  - name: istio
+    url: https://istio-release.storage.googleapis.com/charts
+  - name: strimzi
+    url: https://strimzi.io/charts/
+  - name: prometheus-community
+    url: https://prometheus-community.github.io/helm-charts
+  - name: grafana
+    url: https://grafana.github.io/helm-charts
+  - name: falcosecurity
+    url: https://falcosecurity.github.io/charts
+
+environments:
+  staging:
+    values:
+      - environments/staging/values.yaml
+    secrets:
+      - environments/staging/secrets.yaml
+  production:
+    values:
+      - environments/production/values.yaml
+    secrets:
+      - environments/production/secrets.yaml
+
+---
+
+releases:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 1. cert-manager — TLS certificate lifecycle management
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: cert-manager
+    namespace: cert-manager
+    createNamespace: true
+    chart: jetstack/cert-manager
+    version: "v1.14.5"
+    wait: true
+    waitForJobs: true
+    timeout: 300
+    values:
+      - helm/cert-manager/values.yaml
+      - helm/cert-manager/values.{{ .Environment.Name }}.yaml
+    set:
+      - name: installCRDs
+        value: true
+      - name: global.leaderElection.namespace
+        value: cert-manager
+    labels:
+      tier: platform
+      component: pki
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 2. calico — CNI and NetworkPolicy enforcement
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: calico
+    namespace: calico-system
+    createNamespace: true
+    chart: projectcalico/tigera-operator
+    version: "v3.27.3"
+    wait: true
+    timeout: 420
+    needs:
+      - cert-manager/cert-manager
+    values:
+      - helm/calico/values.yaml
+      - helm/calico/values.{{ .Environment.Name }}.yaml
+    labels:
+      tier: platform
+      component: networking
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 3. gpu-operator — NVIDIA GPU device plugin + driver lifecycle
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: gpu-operator
+    namespace: gpu-operator
+    createNamespace: true
+    chart: nvidia/gpu-operator
+    version: "v23.9.2"
+    wait: true
+    waitForJobs: true
+    timeout: 600
+    needs:
+      - calico-system/calico
+    values:
+      - helm/gpu-operator/values.yaml
+      - helm/gpu-operator/values.{{ .Environment.Name }}.yaml
+    set:
+      - name: operator.defaultRuntime
+        value: containerd
+      - name: driver.enabled
+        value: "{{ .Environment.Values.gpuDriverEnabled }}"
+      - name: toolkit.enabled
+        value: true
+    labels:
+      tier: platform
+      component: gpu
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 4. keda — Kubernetes Event-Driven Autoscaler
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: keda
+    namespace: keda
+    createNamespace: true
+    chart: kedacore/keda
+    version: "2.14.0"
+    wait: true
+    timeout: 300
+    needs:
+      - cert-manager/cert-manager
+    values:
+      - helm/keda/values.yaml
+      - helm/keda/values.{{ .Environment.Name }}.yaml
+    set:
+      - name: metricsServer.replicaCount
+        value: "{{ .Environment.Values.kedaMetricsReplicas }}"
+    labels:
+      tier: platform
+      component: autoscaling
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 5. istio — Service mesh, mTLS, and traffic management
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: istio-base
+    namespace: istio-system
+    createNamespace: true
+    chart: istio/base
+    version: "1.21.2"
+    wait: true
+    timeout: 300
+    needs:
+      - cert-manager/cert-manager
+      - calico-system/calico
+    values:
+      - helm/istio/base-values.yaml
+    labels:
+      tier: mesh
+      component: istio
+
+  - name: istiod
+    namespace: istio-system
+    chart: istio/istiod
+    version: "1.21.2"
+    wait: true
+    timeout: 300
+    needs:
+      - istio-system/istio-base
+    values:
+      - helm/istio/istiod-values.yaml
+      - helm/istio/istiod-values.{{ .Environment.Name }}.yaml
+    set:
+      - name: global.meshID
+        value: lens-mesh
+      - name: global.network
+        value: lens-network
+      - name: global.multiCluster.clusterName
+        value: "lens-{{ .Environment.Name }}"
+    labels:
+      tier: mesh
+      component: istiod
+
+  - name: istio-ingressgateway
+    namespace: istio-ingress
+    createNamespace: true
+    chart: istio/gateway
+    version: "1.21.2"
+    wait: true
+    timeout: 300
+    needs:
+      - istio-system/istiod
+    values:
+      - helm/istio/gateway-values.yaml
+      - helm/istio/gateway-values.{{ .Environment.Name }}.yaml
+    labels:
+      tier: mesh
+      component: ingress
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 6. strimzi — Kafka operator
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: strimzi-kafka-operator
+    namespace: strimzi-system
+    createNamespace: true
+    chart: strimzi/strimzi-kafka-operator
+    version: "0.40.0"
+    wait: true
+    waitForJobs: true
+    timeout: 420
+    needs:
+      - istio-system/istiod
+    values:
+      - helm/strimzi/values.yaml
+      - helm/strimzi/values.{{ .Environment.Name }}.yaml
+    set:
+      - name: watchAnyNamespace
+        value: false
+      - name: watchNamespaces
+        value: "{lens-kafka}"
+      - name: featureGates
+        value: "+KafkaNodePools,+UnidirectionalTopicOperatorReconciliation"
+    labels:
+      tier: messaging
+      component: kafka
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 7. kube-prometheus-stack — Prometheus + Alertmanager + Grafana
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: kube-prometheus-stack
+    namespace: monitoring
+    createNamespace: true
+    chart: prometheus-community/kube-prometheus-stack
+    version: "58.2.2"
+    wait: true
+    timeout: 600
+    needs:
+      - istio-system/istiod
+      - cert-manager/cert-manager
+    values:
+      - helm/kube-prometheus-stack/values.yaml
+      - helm/kube-prometheus-stack/values.{{ .Environment.Name }}.yaml
+    set:
+      - name: grafana.adminPassword
+        value: "{{ requiredEnv \"GRAFANA_ADMIN_PASSWORD\" }}"
+      - name: prometheus.prometheusSpec.retention
+        value: "{{ .Environment.Values.prometheusRetention }}"
+      - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage
+        value: "{{ .Environment.Values.prometheusStorageSize }}"
+    labels:
+      tier: observability
+      component: prometheus
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 8. loki-stack — Log aggregation
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: loki-stack
+    namespace: monitoring
+    chart: grafana/loki-stack
+    version: "2.10.2"
+    wait: true
+    timeout: 300
+    needs:
+      - monitoring/kube-prometheus-stack
+    values:
+      - helm/loki-stack/values.yaml
+      - helm/loki-stack/values.{{ .Environment.Name }}.yaml
+    set:
+      - name: loki.persistence.size
+        value: "{{ .Environment.Values.lokiStorageSize }}"
+    labels:
+      tier: observability
+      component: loki
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 9. falco — Runtime security and anomaly detection
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: falco
+    namespace: falco
+    createNamespace: true
+    chart: falcosecurity/falco
+    version: "3.8.7"
+    wait: true
+    timeout: 300
+    needs:
+      - monitoring/kube-prometheus-stack
+    values:
+      - helm/falco/values.yaml
+      - helm/falco/values.{{ .Environment.Name }}.yaml
+    set:
+      - name: driver.kind
+        value: ebpf
+      - name: falcosidekick.enabled
+        value: true
+      - name: falcosidekick.config.alertmanager.hostport
+        value: "http://kube-prometheus-stack-alertmanager.monitoring.svc.cluster.local:9093"
+      - name: metrics.enabled
+        value: true
+    labels:
+      tier: security
+      component: falco

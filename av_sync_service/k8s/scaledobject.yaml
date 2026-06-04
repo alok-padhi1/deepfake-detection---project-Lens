@@ -1,0 +1,17 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: av-sync-scaler
+  namespace: lens
+spec:
+  scaleTargetRef:
+    name: av-sync-service
+  minReplicaCount: 1
+  maxReplicaCount: 8
+  triggers:
+  - type: kafka
+    metadata:
+      bootstrapServers: strimzi-kafka-bootstrap.lens.svc.cluster.local:9092
+      consumerGroup: av-sync-workers
+      topic: analysis.video
+      lagThreshold: "15"

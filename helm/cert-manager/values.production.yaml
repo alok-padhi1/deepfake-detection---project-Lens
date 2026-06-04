@@ -1,0 +1,9 @@
+# helm/cert-manager/values.production.yaml
+replicaCount: 2
+webhook:
+  replicaCount: 3
+cainjector:
+  replicaCount: 2
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

@@ -1,0 +1,103 @@
+groups:
+  - name: lens.gpu
+    rules:
+      - alert: GPUMemoryOOM
+        expr: |
+          (
+            DCGM_FI_DEV_MEM_COPY_UTIL{namespace="lens"}
+            / 100
+          ) > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          pagerduty_priority: P1
+        annotations:
+          summary: "GPU memory critical on {{ $labels.instance }}"
+          description: >
+            GPU memory utilization has exceeded 95% for 2 minutes on
+            node={{ $labels.instance }} device={{ $labels.gpu }}.
+            Risk of OOM process kill on TorchServe inference workers.
+          runbook_url: "https://wiki.lens.internal/runbooks/gpu-oom"
+
+  - name: lens.kafka
+    rules:
+      - alert: KafkaConsumerLagHigh
+        expr: |
+          sum by (consumer_group, topic) (
+            kafka_consumer_lag{namespace="lens"}
+          ) > 10000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          pagerduty_priority: P2
+        annotations:
+          summary: "Kafka consumer lag high: {{ $labels.consumer_group }} / {{ $labels.topic }}"
+          description: >
+            Consumer group {{ $labels.consumer_group }} on topic {{ $labels.topic }}
+            has lag > 10,000 messages for 5 minutes. Workers may be stalled or
+            TorchServe latency is spiking. Check KEDA ScaledObject replica counts.
+          runbook_url: "https://wiki.lens.internal/runbooks/kafka-lag"
+
+  - name: lens.postgres
+    rules:
+      - alert: PostgreSQLReplicationLag
+        expr: |
+          pg_replication_lag{namespace="lens"} > 30
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+          pagerduty_priority: P2
+        annotations:
+          summary: "PostgreSQL replication lag > 30s"
+          description: >
+            Patroni replica is lagging {{ $value }}s behind the primary.
+            Risk of data loss on primary failover. Check patronictl list.
+          runbook_url: "https://wiki.lens.internal/runbooks/pg-replication"
+
+  - name: lens.drift
+    rules:
+      - alert: ModelDriftDetected
+        expr: |
+          abs(
+            avg_over_time(module_score_distribution{namespace="lens"}[1d])
+            -
+            avg_over_time(module_score_distribution{namespace="lens"}[7d] offset 7d)
+          ) > 0.08
+        for: 1h
+        labels:
+          severity: warning
+          team: ml
+          pagerduty_priority: P3
+          notify_slack: "true"
+        annotations:
+          summary: "Model drift detected: {{ $labels.module }} / {{ $labels.media_type }}"
+          description: >
+            Module {{ $labels.module }} score distribution has drifted > 0.08
+            from 7-day baseline. Automatic retraining job will be triggered.
+            Current delta: {{ $value | humanize }}.
+          runbook_url: "https://wiki.lens.internal/runbooks/model-drift"
+
+  - name: lens.api
+    rules:
+      - alert: APIErrorRateHigh
+        expr: |
+          (
+            sum(rate(http_requests_total{namespace="lens", status=~"5.."}[3m]))
+            /
+            sum(rate(http_requests_total{namespace="lens"}[3m]))
+          ) > 0.01
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+          pagerduty_priority: P2
+        annotations:
+          summary: "LENS API 5xx error rate > 1%"
+          description: >
+            HTTP 5xx error rate has exceeded 1% for 3 minutes.
+            Current rate: {{ $value | humanizePercentage }}.
+            Check API gateway logs and TorchServe health endpoints.
+          runbook_url: "https://wiki.lens.internal/runbooks/api-errors"

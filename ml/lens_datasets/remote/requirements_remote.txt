@@ -1,0 +1,17 @@
+"""
+LENS ML — Remote Dataset Requirements
+Additional packages for streaming (add to main requirements.txt)
+"""
+
+# ── HuggingFace streaming (Option A) ─────────────────────────────────────────
+datasets==2.19.1
+huggingface_hub==0.23.2
+
+# ── WebDataset + S3 streaming (Option B) ─────────────────────────────────────
+webdataset==0.2.86
+boto3==1.34.112
+s3fs==2024.3.1
+
+# ── GCS support (Option C) ───────────────────────────────────────────────────
+google-cloud-storage==2.17.0
+gcsfs==2024.3.1

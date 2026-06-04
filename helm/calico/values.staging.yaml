@@ -1,0 +1,9 @@
+# helm/calico/values.staging.yaml
+installation:
+  calicoNetwork:
+    ipPools:
+      - blockSize: 26
+        cidr: 192.168.0.0/16
+        encapsulation: VXLAN
+        natOutgoing: Enabled
+        nodeSelector: all()

@@ -1,0 +1,5 @@
+# helm/istio/istiod-values.staging.yaml
+pilot:
+  autoscaleMin: 1
+  autoscaleMax: 2
+  traceSampling: 100.0   # 100% sampling in staging

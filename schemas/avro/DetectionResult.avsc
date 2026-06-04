@@ -1,0 +1,29 @@
+{
+  "namespace": "io.lens.kafka",
+  "type": "record",
+  "name": "DetectionResult",
+  "doc": "Published to results.detections after GPU analysis of a frame or full media.",
+  "fields": [
+    {"name": "jobId",          "type": "string"},
+    {"name": "frameIndex",     "type": ["null", "int"],    "default": null, "doc": "null for whole-media results"},
+    {"name": "detectionType",  "type": {"type": "enum",   "name": "DetectionType",
+                                        "symbols": ["DEEPFAKE", "FACE_MATCH", "OBJECT", "OCR", "AUDIO_SPOOF"]},
+                                "doc": "Category of detection"},
+    {"name": "confidence",     "type": "float",            "doc": "Model confidence [0.0, 1.0]"},
+    {"name": "label",          "type": "string",           "doc": "Human-readable detection label"},
+    {"name": "boundingBox",    "type": ["null", {
+                                  "type": "record", "name": "BoundingBox",
+                                  "fields": [
+                                    {"name": "x",      "type": "int"},
+                                    {"name": "y",      "type": "int"},
+                                    {"name": "width",  "type": "int"},
+                                    {"name": "height", "type": "int"}
+                                  ]
+                                }],
+                                "default": null},
+    {"name": "modelVersion",   "type": "string",           "doc": "TensorRT model version tag"},
+    {"name": "inferenceMs",    "type": "float",            "doc": "GPU inference time in milliseconds"},
+    {"name": "analyzedAt",     "type": {"type": "long",   "logicalType": "timestamp-millis"}},
+    {"name": "extras",         "type": {"type": "map",    "values": "string"}, "default": {}}
+  ]
+}

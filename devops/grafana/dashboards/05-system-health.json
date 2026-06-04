@@ -1,0 +1,94 @@
+{
+  "uid": "lens-system-health",
+  "title": "LENS — System Health",
+  "tags": ["lens", "infrastructure", "health"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "PostgreSQL Replication Lag (seconds)",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        { "expr": "pg_replication_lag{namespace='lens'}", "legendFormat": "replica lag (s)" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "steps": [
+            { "value": 0,  "color": "green" },
+            { "value": 10, "color": "yellow" },
+            { "value": 30, "color": "red" }
+          ]}
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "Redis Memory Used %",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 8 },
+      "targets": [
+        { "expr": "redis_memory_used_bytes{namespace='lens'} / redis_memory_max_bytes{namespace='lens'} * 100", "legendFormat": "redis memory %" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": { "steps": [
+            { "value": 0,  "color": "green" },
+            { "value": 70, "color": "yellow" },
+            { "value": 85, "color": "red" }
+          ]}
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "MinIO Disk Usage per Node (bytes)",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "minio_node_disk_used_bytes{namespace='lens'}", "legendFormat": "{{server}} disk used" },
+        { "expr": "minio_node_disk_total_bytes{namespace='lens'}", "legendFormat": "{{server}} disk total" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Patroni Primary / Replica Status",
+      "gridPos": { "x": 0, "y": 16, "w": 6, "h": 8 },
+      "targets": [
+        { "expr": "patroni_master{namespace='lens'}", "legendFormat": "primary ({{pod}})" },
+        { "expr": "patroni_replica{namespace='lens'}", "legendFormat": "replica ({{pod}})" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 1 } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Kafka Broker JVM Heap Usage",
+      "gridPos": { "x": 6, "y": 16, "w": 6, "h": 8 },
+      "targets": [
+        { "expr": "jvm_memory_used_bytes{area='heap', namespace='lens'}", "legendFormat": "heap used — {{pod}}" },
+        { "expr": "jvm_memory_max_bytes{area='heap', namespace='lens'}",  "legendFormat": "heap max — {{pod}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "API Gateway Uptime",
+      "gridPos": { "x": 0, "y": 24, "w": 4, "h": 4 },
+      "targets": [
+        { "expr": "max(process_start_time_seconds{namespace='lens', job='lens-api-gateway'})", "legendFormat": "started" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "dateTimeFromNow" } }
+    }
+  ],
+  "schemaVersion": 38
+}

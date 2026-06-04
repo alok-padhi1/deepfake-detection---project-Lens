@@ -1,0 +1,12 @@
+# helm/keda/values.production.yaml
+metricsServer:
+  replicaCount: 2
+operator:
+  replicaCount: 2
+webhooks:
+  replicaCount: 2
+podDisruptionBudget:
+  operator:
+    minAvailable: 1
+  metricServer:
+    minAvailable: 1

@@ -1,0 +1,85 @@
+{
+  "uid": "lens-model-performance",
+  "title": "LENS — Model Performance & Drift",
+  "tags": ["lens", "ml", "drift"],
+  "timezone": "browser",
+  "refresh": "5m",
+  "time": { "from": "now-7d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Module Score Distribution — 7-day Rolling Mean (Image)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "avg_over_time(module_score_distribution{namespace='lens', module='image_forensics'}[7d])",
+          "legendFormat": "image_forensics 7d mean"
+        },
+        {
+          "expr": "avg_over_time(module_score_distribution{namespace='lens', module='image_forensics'}[7d] offset 7d)",
+          "legendFormat": "image_forensics baseline (prev 7d)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 1 } }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Module Score Distribution — 7-day Rolling Mean (Audio)",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "avg_over_time(module_score_distribution{namespace='lens', module='audio_forensics'}[7d])",
+          "legendFormat": "audio_forensics 7d mean"
+        },
+        {
+          "expr": "avg_over_time(module_score_distribution{namespace='lens', module='audio_forensics'}[7d] offset 7d)",
+          "legendFormat": "audio_forensics baseline (prev 7d)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 1 } }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Drift Delta: |current_mean − baseline_mean| per module",
+      "description": "Alert fires if > 0.08",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "abs(avg_over_time(module_score_distribution{namespace='lens'}[1d]) - avg_over_time(module_score_distribution{namespace='lens'}[7d] offset 7d))",
+          "legendFormat": "drift delta — {{module}} / {{media_type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0, "max": 0.3 },
+        "overrides": [{
+          "matcher": { "id": "byName", "options": "0.08 threshold" },
+          "properties": [{ "id": "custom.lineStyle", "value": { "dash": [8, 4], "fill": "dash" } }]
+        }]
+      },
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          { "value": 0,    "color": "green" },
+          { "value": 0.05, "color": "yellow" },
+          { "value": 0.08, "color": "red" }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "TorchServe Inference Latency p50 / p95 / p99 per Model",
+      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (model_name, le) (rate(inference_latency_seconds_bucket{namespace='lens'}[5m])))", "legendFormat": "p50 {{model_name}}" },
+        { "expr": "histogram_quantile(0.95, sum by (model_name, le) (rate(inference_latency_seconds_bucket{namespace='lens'}[5m])))", "legendFormat": "p95 {{model_name}}" },
+        { "expr": "histogram_quantile(0.99, sum by (model_name, le) (rate(inference_latency_seconds_bucket{namespace='lens'}[5m])))", "legendFormat": "p99 {{model_name}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    }
+  ],
+  "schemaVersion": 38
+}

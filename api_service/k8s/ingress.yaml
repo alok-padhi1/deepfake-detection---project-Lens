@@ -1,0 +1,39 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lens-ingress
+  namespace: lens
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-production"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/limit-connections: "20"
+    nginx.ingress.kubernetes.io/limit-rps: "50"
+    # Enable HTTP/2 for gRPC routing
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      grpc_read_timeout 1800s;
+      grpc_send_timeout 1800s;
+spec:
+  tls:
+  - hosts:
+    - lens.forensics.platform
+    secretName: lens-ingress-tls
+  rules:
+  - host: lens.forensics.platform
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              name: rest
+      - path: /grpc
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              name: grpc

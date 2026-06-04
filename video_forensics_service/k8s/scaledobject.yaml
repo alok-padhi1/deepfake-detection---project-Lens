@@ -1,0 +1,17 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: video-forensics-scaler
+  namespace: lens
+spec:
+  scaleTargetRef:
+    name: video-forensics-service
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  triggers:
+  - type: kafka
+    metadata:
+      bootstrapServers: strimzi-kafka-bootstrap.lens.svc.cluster.local:9092
+      consumerGroup: video-forensics-workers
+      topic: analysis.video
+      lagThreshold: "10"

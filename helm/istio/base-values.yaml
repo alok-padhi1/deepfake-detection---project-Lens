@@ -1,0 +1,4 @@
+# helm/istio/base-values.yaml
+# istio/base — CRDs only, no workloads
+
+defaultRevision: ""

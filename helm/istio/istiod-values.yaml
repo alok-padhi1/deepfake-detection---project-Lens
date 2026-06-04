@@ -1,0 +1,48 @@
+# helm/istio/istiod-values.yaml
+# istiod base values
+
+global:
+  meshID: lens-mesh
+  network: lens-network
+  proxy:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+  tracer:
+    zipkin:
+      address: ""
+
+pilot:
+  autoscaleEnabled: true
+  autoscaleMin: 1
+  autoscaleMax: 5
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: "1"
+      memory: 4Gi
+  traceSampling: 1.0
+
+meshConfig:
+  defaultConfig:
+    holdApplicationUntilProxyStarts: true
+    proxyStatsMatcher:
+      inclusionRegexps:
+        - ".*circuit_breakers.*"
+        - ".*upstream_rq_retry.*"
+        - ".*upstream_cx_.*"
+  accessLogFile: /dev/stdout
+  enableTracing: false
+
+telemetry:
+  enabled: true
+  v2:
+    enabled: true
+    prometheus:
+      enabled: true

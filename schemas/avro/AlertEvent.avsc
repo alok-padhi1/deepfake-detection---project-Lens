@@ -1,0 +1,21 @@
+{
+  "namespace": "io.lens.kafka",
+  "type": "record",
+  "name": "AlertEvent",
+  "doc": "Published to alerts.events when a detection crosses the alert threshold.",
+  "fields": [
+    {"name": "alertId",       "type": "string",  "doc": "UUID for this alert"},
+    {"name": "jobId",         "type": "string"},
+    {"name": "severity",      "type": {"type": "enum", "name": "AlertSeverity",
+                                       "symbols": ["INFO", "WARNING", "HIGH", "CRITICAL"]}},
+    {"name": "detectionType", "type": "string"},
+    {"name": "confidence",    "type": "float"},
+    {"name": "description",   "type": "string"},
+    {"name": "evidenceUri",   "type": ["null", "string"], "default": null,
+                               "doc": "s3:// URI of annotated frame or clip"},
+    {"name": "notifiedAt",    "type": {"type": "long", "logicalType": "timestamp-millis"}},
+    {"name": "channels",      "type": {"type": "array", "items": "string"},
+                               "doc": "Notification channels triggered: slack, email, pagerduty, webhook"},
+    {"name": "acknowledged",  "type": "boolean", "default": false}
+  ]
+}

@@ -1,0 +1,17 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: audio-forensics-scaler
+  namespace: lens
+spec:
+  scaleTargetRef:
+    name: audio-forensics-service
+  minReplicaCount: 2
+  maxReplicaCount: 20
+  triggers:
+  - type: kafka
+    metadata:
+      bootstrapServers: strimzi-kafka-bootstrap.lens.svc.cluster.local:9092
+      consumerGroup: audio-forensics-workers
+      topic: analysis.audio
+      lagThreshold: "30"

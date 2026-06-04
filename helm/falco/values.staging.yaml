@@ -1,0 +1,7 @@
+# helm/falco/values.staging.yaml
+falcosidekick:
+  replicaCount: 1
+  config:
+    debug: true
+    alertmanager:
+      minimumpriority: debug

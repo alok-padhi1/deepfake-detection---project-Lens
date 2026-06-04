@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lens-retraining-job-{{MODULE_NAME}}-{{TIMESTAMP}}
+  namespace: lens
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      containers:
+      - name: retraining-worker
+        image: lens/model-retrainer:latest
+        imagePullPolicy: IfNotPresent
+        command: ["python", "retraining_pipeline.py"]
+        args:
+          - "--module"
+          - "{{MODULE_NAME}}"
+          - "--media-type"
+          - "{{MEDIA_TYPE}}"
+        env:
+        - name: KAFKA_BROKERS
+          value: "strimzi-kafka-bootstrap.lens.svc.cluster.local:9092"
+        - name: PG_HOST
+          value: "postgresql.lens.svc.cluster.local"
+        - name: PG_USER
+          valueFrom:
+            secretKeyRef:
+              name: lens-secrets
+              key: POSTGRES_USER
+        - name: PG_PASS
+          valueFrom:
+            secretKeyRef:
+              name: lens-secrets
+              key: POSTGRES_PASSWORD
+        - name: PG_DB
+          value: "lens_db"
+        - name: S3_ENDPOINT
+          value: "http://minio.lens.svc.cluster.local:9000"
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: lens-secrets
+              key: MINIO_ROOT_USER
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: lens-secrets
+              key: MINIO_ROOT_PASSWORD
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+            cpu: "4"
+            memory: "16Gi"
+          requests:
+            nvidia.com/gpu: 1
+            cpu: "2"
+            memory: "8Gi"
+      restartPolicy: Never

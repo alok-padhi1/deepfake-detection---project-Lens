@@ -1,0 +1,91 @@
+# Helm values for kube-prometheus-stack (Prometheus + Grafana + AlertManager)
+# Deploy: helm upgrade --install lens-monitoring prometheus-community/kube-prometheus-stack \
+#           -f devops/monitoring/prometheus-stack-values.yaml -n monitoring
+
+nameOverride: lens-monitoring
+fullnameOverride: lens-monitoring
+
+prometheus:
+  prometheusSpec:
+    retention: 30d
+    retentionSize: "50GB"
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: fast-ssd
+          resources:
+            requests:
+              storage: 60Gi
+    additionalScrapeConfigs:
+      - job_name: lens-image-forensics
+        static_configs:
+          - targets: ["image-forensics-service.lens.svc.cluster.local:8001"]
+      - job_name: lens-video-forensics
+        static_configs:
+          - targets: ["video-forensics-service.lens.svc.cluster.local:8002"]
+      - job_name: lens-audio-forensics
+        static_configs:
+          - targets: ["audio-forensics-service.lens.svc.cluster.local:8003"]
+      - job_name: lens-av-sync
+        static_configs:
+          - targets: ["av-sync-service.lens.svc.cluster.local:8004"]
+      - job_name: lens-fusion
+        static_configs:
+          - targets: ["fusion-service.lens.svc.cluster.local:8005"]
+      - job_name: lens-api-gateway
+        static_configs:
+          - targets: ["api-gateway.lens.svc.cluster.local:8000"]
+      - job_name: dcgm-exporter          # GPU metrics from NVIDIA DCGM
+        static_configs:
+          - targets: ["dcgm-exporter.gpu-system.svc.cluster.local:9400"]
+    additionalAlertManagerConfigs:
+      - namespace: monitoring
+        name: lens-alertmanager-config
+        key: alertmanager.yaml
+    ruleSelectorNilUsesHelmValues: false
+    ruleNamespaceSelector: {}
+    ruleSelector:
+      matchLabels:
+        app: lens-monitoring
+
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: fast-ssd
+          resources:
+            requests:
+              storage: 5Gi
+
+grafana:
+  enabled: true
+  adminPassword: "GRAFANA_ADMIN_PASSWORD_PLACEHOLDER"
+  persistence:
+    enabled: true
+    storageClassName: fast-ssd
+    size: 10Gi
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: monitoring
+  grafana.ini:
+    server:
+      root_url: "https://grafana.lens.forensics.platform"
+    auth.generic_oauth:
+      enabled: true
+      name: Keycloak
+      allow_sign_up: true
+      client_id: grafana
+      client_secret: KEYCLOAK_GRAFANA_SECRET_PLACEHOLDER
+      scopes: openid email profile
+      auth_url: "https://keycloak.lens.internal/realms/lens/protocol/openid-connect/auth"
+      token_url: "https://keycloak.lens.internal/realms/lens/protocol/openid-connect/token"
+      api_url: "https://keycloak.lens.internal/realms/lens/protocol/openid-connect/userinfo"
+
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true

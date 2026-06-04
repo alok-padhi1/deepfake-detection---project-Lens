@@ -1,0 +1,22 @@
+{
+  "namespace": "io.lens.kafka",
+  "type": "record",
+  "name": "MediaIngestEvent",
+  "doc": "Published to media.raw when a new media file is submitted for forensic analysis.",
+  "fields": [
+    {"name": "jobId",       "type": "string",  "doc": "UUID v4 assigned by Ingest Service"},
+    {"name": "mediaUri",    "type": "string",  "doc": "s3://minio-bucket/path/to/file"},
+    {"name": "mediaType",   "type": {"type": "enum", "name": "MediaType", "symbols": ["VIDEO", "IMAGE", "AUDIO"]},
+                             "doc": "Type of media submitted"},
+    {"name": "sizeBytes",   "type": "long",    "doc": "File size in bytes"},
+    {"name": "sha256",      "type": "string",  "doc": "SHA-256 hex digest of raw file"},
+    {"name": "submittedBy", "type": "string",  "doc": "Authenticated user identity"},
+    {"name": "submittedAt", "type": {"type": "long", "logicalType": "timestamp-millis"},
+                             "doc": "Wall-clock submission time (UTC ms)"},
+    {"name": "priority",    "type": {"type": "enum", "name": "Priority", "symbols": ["LOW", "NORMAL", "HIGH", "CRITICAL"]},
+                             "default": "NORMAL"},
+    {"name": "metadata",    "type": {"type": "map", "values": "string"},
+                             "default": {},
+                             "doc": "Arbitrary key-value metadata from the client"}
+  ]
+}

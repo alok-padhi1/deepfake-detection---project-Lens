@@ -1,0 +1,16 @@
+{
+  "namespace": "io.lens.kafka",
+  "type": "record",
+  "name": "FaceEmbedding",
+  "doc": "Face embedding vector written to Qdrant for similarity search.",
+  "fields": [
+    {"name": "jobId",       "type": "string"},
+    {"name": "frameIndex",  "type": "int"},
+    {"name": "faceId",      "type": "string",  "doc": "UUID for this detected face"},
+    {"name": "vector",      "type": {"type": "array", "items": "float"},
+                             "doc": "512-dim ArcFace embedding"},
+    {"name": "confidence",  "type": "float"},
+    {"name": "sourceUri",   "type": "string",  "doc": "s3:// URI of frame"},
+    {"name": "createdAt",   "type": {"type": "long", "logicalType": "timestamp-millis"}}
+  ]
+}

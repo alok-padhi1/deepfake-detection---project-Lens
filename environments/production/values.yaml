@@ -1,0 +1,77 @@
+# environments/production/values.yaml
+# LENS Platform — Production Environment Overrides
+
+# ── GPU ──────────────────────────────────────────────────────────────────────
+gpuDriverEnabled: "true"
+
+# ── KEDA ─────────────────────────────────────────────────────────────────────
+kedaMetricsReplicas: 2
+
+# ── Prometheus ───────────────────────────────────────────────────────────────
+prometheusRetention: 30d
+prometheusStorageSize: 200Gi
+
+# ── Loki ─────────────────────────────────────────────────────────────────────
+lokiStorageSize: 100Gi
+
+# ── Replica counts ───────────────────────────────────────────────────────────
+replicaCount:
+  api: 3
+  ingest: 2
+  worker: 4
+  alert: 2
+
+# ── Resource limits (production-grade) ───────────────────────────────────────
+resources:
+  api:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+  worker:
+    requests:
+      cpu: "4"
+      memory: "16Gi"
+    limits:
+      cpu: "8"
+      memory: "32Gi"
+      nvidia.com/gpu: "1"
+
+# ── Domain ───────────────────────────────────────────────────────────────────
+domain: lens.example.com        # REPLACE with your actual domain
+tlsIssuer: letsencrypt-prod
+
+# ── Storage ──────────────────────────────────────────────────────────────────
+minio:
+  storageSize: 2Ti
+  replicas: 4
+  mode: distributed
+
+postgres:
+  storageSize: 200Gi
+  replicas: 3
+  walArchiving: true
+
+redis:
+  storageSize: 20Gi
+  replicas: 3
+
+qdrant:
+  storageSize: 200Gi
+  replicas: 3
+
+# ── Kafka ─────────────────────────────────────────────────────────────────────
+kafka:
+  replicas: 3
+  storageSize: 500Gi
+  schemaRegistry:
+    replicas: 2
+
+# ── Feature flags ─────────────────────────────────────────────────────────────
+features:
+  opaGatekeeper: true
+  networkPolicies: true
+  podSecurityAdmission: enforce
+  istioMtls: STRICT

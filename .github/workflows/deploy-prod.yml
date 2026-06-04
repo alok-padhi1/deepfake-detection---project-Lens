@@ -1,0 +1,117 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: production
+        type: choice
+        options: [production]
+      sha:
+        description: "Git SHA to promote (defaults to latest staging SHA)"
+        required: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/lens
+
+jobs:
+  promote-to-prod:
+    name: Promote → Production
+    runs-on: ubuntu-latest
+    environment: production          # ← requires manual approval in GitHub env settings
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve SHA to promote
+        id: sha
+        run: |
+          TARGET_SHA="${{ github.event.inputs.sha }}"
+          if [ -z "$TARGET_SHA" ]; then
+            TARGET_SHA="${{ github.sha }}"
+          fi
+          echo "sha=$TARGET_SHA" >> $GITHUB_OUTPUT
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o /usr/local/bin/argocd \
+            https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x /usr/local/bin/argocd
+
+      - name: Update production Helm values with SHA
+        run: |
+          for svc in image_forensics_service video_forensics_service audio_forensics_service \
+                     av_sync_service fusion_service api_service; do
+            sed -i "s|tag:.*|tag: ${{ steps.sha.outputs.sha }}|g" \
+              devops/argocd/production/${svc}-values.yaml || true
+          done
+
+      - name: Commit production image tags
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "ci(prod): promote ${{ steps.sha.outputs.sha }} to production"
+          branch: main
+
+      - name: ArgoCD login
+        run: |
+          argocd login ${{ secrets.ARGOCD_SERVER }} \
+            --auth-token ${{ secrets.ARGOCD_TOKEN }} \
+            --grpc-web --insecure
+
+      - name: Sync all production apps (manual sync policy)
+        run: |
+          for app in lens-image-prod lens-video-prod lens-audio-prod \
+                     lens-av-sync-prod lens-fusion-prod lens-api-prod; do
+            argocd app sync $app --prune --timeout 600
+            argocd app wait $app --health --timeout 600
+          done
+
+  post-deploy-healthcheck:
+    name: Post-Deploy Health Verification
+    runs-on: ubuntu-latest
+    needs: promote-to-prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests
+
+      - name: Poll /api/v1/health until all model versions confirmed
+        env:
+          PROD_API_URL: ${{ secrets.PROD_API_URL }}
+          PROD_TOKEN:   ${{ secrets.PROD_HEALTH_TOKEN }}
+          EXPECTED_SHA: ${{ needs.promote-to-prod.outputs.sha }}
+        run: |
+          python - <<'EOF'
+          import os, time, requests, sys
+
+          url   = os.environ["PROD_API_URL"] + "/api/v1/health"
+          token = os.environ["PROD_TOKEN"]
+          headers = {"Authorization": f"Bearer {token}"}
+
+          REQUIRED_MODELS = [
+            "efficientnet", "timesformer", "resnet34",
+            "rawnet3", "syncnet", "fusion_mlp"
+          ]
+
+          for attempt in range(30):          # 30 × 20s = 10 minutes max
+              try:
+                  r = requests.get(url, headers=headers, timeout=10)
+                  if r.status_code == 200:
+                      data = r.json()
+                      versions = data.get("model_versions", {})
+                      ready = all(k in versions for k in REQUIRED_MODELS)
+                      if ready and data.get("status") == "healthy":
+                          print(f"✅ All {len(REQUIRED_MODELS)} models confirmed healthy.")
+                          sys.exit(0)
+                      print(f"  attempt {attempt+1}: not ready yet — {versions}")
+              except Exception as e:
+                  print(f"  attempt {attempt+1}: error — {e}")
+              time.sleep(20)
+
+          print("❌ Health check timed out after 10 minutes.")
+          sys.exit(1)
+          EOF

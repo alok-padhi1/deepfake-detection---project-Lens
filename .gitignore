@@ -1,0 +1,47 @@
+# Environment variables
+.env
+.env.local
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+venv/
+env/
+.poetry/
+*.egg-info/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Node/Next.js
+node_modules/
+.next/
+out/
+build/
+dist/
+.turbo/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Deep Learning weights & Large Datasets
+*.pt
+*.pth
+*.bin
+*.onnx
+*.pkl
+*.parquet
+checkpoints/
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini

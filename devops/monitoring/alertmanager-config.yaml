@@ -1,0 +1,67 @@
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: "smtp.lens.internal:587"
+  slack_api_url: "SLACK_WEBHOOK_URL_PLACEHOLDER"
+
+route:
+  group_by: [alertname, severity, team]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: default-pagerduty
+  routes:
+    - match:
+        pagerduty_priority: P1
+      receiver: pagerduty-p1
+      repeat_interval: 15m
+    - match:
+        pagerduty_priority: P2
+      receiver: pagerduty-p2
+      repeat_interval: 1h
+    - match:
+        pagerduty_priority: P3
+        notify_slack: "true"
+      receiver: pagerduty-p3-slack
+      repeat_interval: 6h
+
+receivers:
+  - name: default-pagerduty
+    pagerduty_configs:
+      - routing_key: PAGERDUTY_INTEGRATION_KEY_PLACEHOLDER
+        send_resolved: true
+
+  - name: pagerduty-p1
+    pagerduty_configs:
+      - routing_key: PAGERDUTY_INTEGRATION_KEY_PLACEHOLDER
+        severity: critical
+        send_resolved: true
+        description: "🔴 P1 CRITICAL: {{ .GroupLabels.alertname }}"
+
+  - name: pagerduty-p2
+    pagerduty_configs:
+      - routing_key: PAGERDUTY_INTEGRATION_KEY_PLACEHOLDER
+        severity: warning
+        send_resolved: true
+        description: "🟠 P2 WARNING: {{ .GroupLabels.alertname }}"
+
+  - name: pagerduty-p3-slack
+    pagerduty_configs:
+      - routing_key: PAGERDUTY_INTEGRATION_KEY_PLACEHOLDER
+        severity: warning
+        send_resolved: true
+    slack_configs:
+      - channel: "#lens-ml-alerts"
+        title: "⚠️ LENS Model Drift Detected"
+        text: >
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Module:* {{ (index .Alerts 0).Labels.module }}
+          *Media Type:* {{ (index .Alerts 0).Labels.media_type }}
+          *Description:* {{ (index .Alerts 0).Annotations.description }}
+        send_resolved: true
+
+inhibit_rules:
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: [alertname, instance]

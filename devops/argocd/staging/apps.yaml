@@ -1,0 +1,176 @@
+# ArgoCD Application manifests for all 6 LENS services — STAGING
+# Each app uses automated sync (selfHeal=true, prune=true)
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lens-image-staging
+  namespace: argocd
+spec:
+  project: lens
+  source:
+    repoURL: https://github.com/YOUR_ORG/lens
+    targetRevision: HEAD
+    path: image_forensics_service/k8s
+    helm:
+      valueFiles:
+        - devops/argocd/staging/image_forensics_service-values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: lens
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas   # KEDA manages replica count
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lens-video-staging
+  namespace: argocd
+spec:
+  project: lens
+  source:
+    repoURL: https://github.com/YOUR_ORG/lens
+    targetRevision: HEAD
+    path: video_forensics_service/k8s
+    helm:
+      valueFiles:
+        - devops/argocd/staging/video_forensics_service-values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: lens
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lens-audio-staging
+  namespace: argocd
+spec:
+  project: lens
+  source:
+    repoURL: https://github.com/YOUR_ORG/lens
+    targetRevision: HEAD
+    path: audio_forensics_service/k8s
+    helm:
+      valueFiles:
+        - devops/argocd/staging/audio_forensics_service-values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: lens
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lens-av-sync-staging
+  namespace: argocd
+spec:
+  project: lens
+  source:
+    repoURL: https://github.com/YOUR_ORG/lens
+    targetRevision: HEAD
+    path: av_sync_service/k8s
+    helm:
+      valueFiles:
+        - devops/argocd/staging/av_sync_service-values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: lens
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lens-fusion-staging
+  namespace: argocd
+spec:
+  project: lens
+  source:
+    repoURL: https://github.com/YOUR_ORG/lens
+    targetRevision: HEAD
+    path: fusion_service/k8s
+    helm:
+      valueFiles:
+        - devops/argocd/staging/fusion_service-values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: lens
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lens-api-staging
+  namespace: argocd
+spec:
+  project: lens
+  source:
+    repoURL: https://github.com/YOUR_ORG/lens
+    targetRevision: HEAD
+    path: api_service/k8s
+    helm:
+      valueFiles:
+        - devops/argocd/staging/api_service-values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: lens
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

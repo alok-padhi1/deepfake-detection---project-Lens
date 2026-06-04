@@ -1,0 +1,75 @@
+{
+  "uid": "lens-pipeline-throughput",
+  "title": "LENS — Pipeline Throughput",
+  "tags": ["lens", "pipeline"],
+  "timezone": "browser",
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Cases / Minute (all types)",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "targets": [{
+        "expr": "sum(rate(case_processing_duration_seconds_count{namespace='lens'}[1m])) * 60",
+        "legendFormat": "cases/min"
+      }],
+      "options": { "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "value": 0,   "color": "green" },
+          { "value": 50,  "color": "yellow" },
+          { "value": 100, "color": "red" }
+        ]}}}
+    },
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "Active Cases in Pipeline",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "targets": [{
+        "expr": "sum(active_cases_total{namespace='lens'})",
+        "legendFormat": "active"
+      }],
+      "fieldConfig": { "defaults": { "min": 0, "max": 500,
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "value": 0,   "color": "green" },
+          { "value": 200, "color": "yellow" },
+          { "value": 400, "color": "red" }
+        ]}}}
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Per-Service p50 Inference Latency (s)",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (model_name, le) (rate(inference_latency_seconds_bucket{namespace='lens'}[5m])))", "legendFormat": "p50 {{model_name}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Kafka Consumer Lag by Topic",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "sum by (topic, consumer_group) (kafka_consumer_lag{namespace='lens'})", "legendFormat": "{{consumer_group}} / {{topic}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Case Processing Duration p99 by Media Type",
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "histogram_quantile(0.99, sum by (media_type, le) (rate(case_processing_duration_seconds_bucket{namespace='lens'}[5m])))", "legendFormat": "p99 {{media_type}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    }
+  ],
+  "schemaVersion": 38
+}

@@ -1,0 +1,55 @@
+# tests/chaos_mesh.yaml
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: minio-pod-kill
+  namespace: lens
+spec:
+  action: pod-kill
+  mode: fixed
+  value: '1'
+  selector:
+    namespaces:
+      - lens
+    labelSelectors:
+      app: minio
+  scheduler:
+    cron: '*/5 * * * *'
+  duration: '30s'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: kafka-broker-restart
+  namespace: lens
+spec:
+  action: pod-kill
+  mode: fixed
+  value: '1'
+  selector:
+    namespaces:
+      - lens
+    labelSelectors:
+      strimzi.io/name: strimzi-kafka
+  scheduler:
+    cron: '*/7 * * * *'
+  duration: '15s'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: postgres-primary-kill
+  namespace: lens
+spec:
+  action: pod-kill
+  mode: fixed
+  value: '1'
+  selector:
+    namespaces:
+      - lens
+    labelSelectors:
+      app.kubernetes.io/name: postgresql
+      role: master
+  scheduler:
+    cron: '*/10 * * * *'
+  duration: '60s'

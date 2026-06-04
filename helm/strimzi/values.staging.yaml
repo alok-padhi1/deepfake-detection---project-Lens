@@ -1,0 +1,3 @@
+# helm/strimzi/values.staging.yaml
+replicas: 1
+logLevel: DEBUG
